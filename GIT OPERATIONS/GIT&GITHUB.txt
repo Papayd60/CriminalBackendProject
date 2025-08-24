@@ -164,7 +164,7 @@ Why? 👉 Criminal প্রোজেক্টের local history GitHub server
 
 Clone করা
 
-git clone https://github.com/username/criminal-app.git
+git clone https://github.com/Papayd60/CriminalBackendProject.git
 
 
 Why? 👉 Remote Criminal repo কে নামিয়ে লোকাল কম্পিউটারে আনতে।
