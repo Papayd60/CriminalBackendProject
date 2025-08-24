@@ -1,0 +1,748 @@
+1️⃣ Stored Procedure(SP)
+Simple meaning →
+ডাটাবেসে আগেই কিছু SQL কোড স্টোর করে রাখা হয়, যেন বারবার ওই কোড লিখতে না হয়, শুধু নাম ডেকে চালানো যায়।
+এটা অনেকটা “recipe book” এর মতো — রান্না করার নিয়ম একবার লিখে রাখলে, পরে শুধু নাম বললেই হবে।
+
+-- Example of dropping the old and creating the new procedure.
+-- Note: Replace the procedure body with your actual code.
+
+DROP PROCEDURE IF EXISTS sp_criminal_info_update;
+GO
+
+CREATE PROCEDURE sp_criminal_info_update_new
+
+কেন ব্যবহার করবো Node API তে ?
+
+    বারবার একি SQL কোড লিখতে না হয়
+
+পারফরম্যান্স ভালো হয়(DB server অপ্টিমাইজ করে)
+
+একবার বদলালে সব API তে আপডেট হয়ে যায়
+
+Deadlock বা Lost connection হলে: SHOW PROCESSLIST; চালিয়ে চলমান কুয়েরি দেখো, তারপর সমস্যা করা কুয়েরির Id নিয়ে KILL Id; দিয়ে সেই কুয়েরিটা বন্ধ 
+
+ইমোজি রাখতে চাও, তাহলে:
+ALTER DATABASE mydatabase CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+ALTER TABLE your_table_name CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+----Insert Data to police_station & invstregistrationregistration_logs
+
+// 1. Stored Procedure (SP) — শুধু police_station এ ডাটা ইনসার্ট করবে, লগ ইনসার্ট করবে না।
+DELIMITER $$
+
+CREATE PROCEDURE register_police(
+    IN p_officer_name VARCHAR(100), --অফিসারের নাম
+    IN p_branch_name  VARCHAR(50), --ব্রাঞ্চের নাম
+    IN p_district     VARCHAR(50), --জেলা
+    IN p_password     VARCHAR(255)-- পাসওয়ার্ড(hashed)
+)
+BEGIN
+    DECLARE v_police_id VARCHAR(50); --জেনারেটেড পুলিশ আইডি
+    DECLARE v_today VARCHAR(20); --আজকের তারিখ ফরম্যাটে
+    DECLARE v_district_code VARCHAR(10); --জেলার কোড
+    DECLARE v_prefix VARCHAR(10); --CID বা WBINC
+    DECLARE v_count INT; --টোটাল পুলিশ স্টেশন সংখ্যা
+
+    START TRANSACTION;
+
+--আজকের তারিখ: DDMMYYYY
+    SET v_today = DATE_FORMAT(NOW(), '%d%m%Y');
+
+--জেলার নাম থেকে 4 অক্ষরের কোড
+    SET v_district_code = UPPER(LEFT(REPLACE(p_district, ' ', ''), 4));
+
+--CID হলে WBCID, নাহলে WBINC
+    SET v_prefix = IF(UPPER(p_branch_name) = 'CID', 'WBCID', 'WBINC');
+
+--মোট পুলিশ স্টেশন কাউন্ট
+    SELECT COUNT(*) INTO v_count FROM police_station; --টেবিলে ডাটা না থাকে, তাহলে v_count হবে 0। অর্থাৎ, v_count কখনো NULL হবে না, সর্বনিম্ন হবে 0।
+
+--ইউনিক আইডি তৈরি
+    SET v_police_id = CONCAT(v_prefix, v_today, v_district_code, v_count + 1); -- 'WBCID09082025BANK1'
+--v_count + 1 মানে হলো: টেবিল খালি থাকলে → 0 + 1 = 1 → নতুন আইডি হবে প্রথম আইডি, টেবিলে যদি 5টা রেকর্ড থাকে → 5 + 1 = 6 → নতুন আইডি হবে ষষ্ঠ আইডি
+--NULL চেক
+    IF p_officer_name IS NOT NULL AND p_branch_name IS NOT NULL AND p_district IS NOT NULL AND p_password IS NOT NULL THEN
+--পুলিশ স্টেশন টেবিলে ইনসার্ট
+    INSERT INTO police_station(police_id, officer_name, branch_name, district, password_hash)
+VALUES(v_police_id, p_officer_name, p_branch_name, p_district, p_password);
+
+COMMIT;
+ELSE
+ROLLBACK;
+    END IF;
+--Node.js এ পাঠানোর জন্য ডাটা রিটার্ন
+    SELECT police_id, officer_name, district FROM police_station WHERE police_id = v_police_id;
+END$$
+
+DELIMITER;
+
+// 2. Trigger — police_station-এ নতুন রেকর্ড ইনসার্ট হলে লগ টেবিলে ইনসার্ট করবে
+// Stored Procedure (SP) দিয়ে police_station টেবিলে ইনসার্ট করছো, 
+// আর তারপর একই সময়ে AFTER INSERT ট্রিগারটা চালু হয় যেটা invstregistrationregistration_logs টেবিলে লগ ইনসার্ট করে।
+
+--DROP TRIGGER IF EXISTS trg_after_insert_police_station;
+--Trigger আছে কিনা দেখার জন্য SHOW TRIGGERS LIKE 'police_station';
+--অথবা, নির্দিষ্ট নামের ট্রিগার আছে কিনা জানতে:
+--SELECT TRIGGER_NAME
+--FROM information_schema.TRIGGERS
+--WHERE TRIGGER_SCHEMA = 'mydatabase'  -- তোমার ডাটাবেসের নাম
+--AND TRIGGER_NAME = 'trg_after_insert_police_station';
+
+DELIMITER $$
+
+CREATE TRIGGER trg_after_insert_police_station
+AFTER INSERT ON police_station
+FOR EACH ROW
+BEGIN
+--লগ টেবিলে ইনসার্ট
+    INSERT INTO invstregistrationregistration_logs
+    (police_id, officer_name, branch_name, district, created_date, created_time, created_time_ampm)
+VALUES(
+    NEW.police_id,
+    NEW.officer_name,
+    NEW.branch_name,
+    NEW.district,
+    CURDATE(), --YYYY - MM - DD
+        TIME_FORMAT(NOW(), '%H:%i:%s'), --24 ঘণ্টা ফরম্যাট(HH: MM: SS)
+        DATE_FORMAT(NOW(), '%r')-- 12 ঘণ্টা AM / PM ফরম্যাট(HH: MM: SS AM / PM)
+
+);
+END$$
+
+DELIMITER;
+
+----Fetch login data from police_station & Insert Data to invstregistrationlogin_logs
+// Login Logic কোথায় রাখবে - Stored Procedure + Transaction ,  Login সফল হলে লগ টেবিলে insert করবে,
+// এখানে Trigger Avoid করা ভালো , এখানে View useful যখন জটিল Join দরকার হয়, 
+// officer_name বা username (login field) এর উপর Index রাখলে search/authentication অনেক দ্রুত হবে
+
+ট্রিগার দেখতে হলে: SHOW TRIGGERS;
+ট্রিগার ড্রপ করতে হলে: DROP TRIGGER trg_after_login_log;
+
+CREATE Index - CREATE INDEX idx_police_id ON police_station(police_id, officer_name, branch_name, district);
+SHOW INDEX - SHOW INDEX FROM police_station;
+Index মুছে ফেলা - DROP INDEX idx_branch_name ON police_station;
+
+--1 ✅ পুলিশ লগইন চেক করার জন্য Stored Procedure
+DELIMITER $$
+
+CREATE PROCEDURE sp_login_police(
+    IN p_police_id VARCHAR(50)-- Police ID ইনপুট
+)
+BEGIN
+    DECLARE v_police_id VARCHAR(50);
+    DECLARE v_officer_name VARCHAR(255);
+    DECLARE v_password_hash VARCHAR(255);
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+ROLLBACK;
+        SELECT '❌ Database Error' AS message;
+END;
+
+    START TRANSACTION;
+
+--ডাটাবেস থেকে তথ্য আনা
+    SELECT police_id, officer_name, password_hash
+    INTO v_police_id, v_officer_name, v_password_hash
+    FROM police_station
+    WHERE police_id = p_police_id;
+
+--যদি তথ্য না পাওয়া যায়
+    IF v_police_id IS NULL OR v_password_hash IS NULL THEN
+ROLLBACK;
+        SELECT NULL AS police_id, NULL AS officer_name, NULL AS password_hash, '❌ Police ID not found' AS message;
+ELSE
+COMMIT;
+        SELECT v_police_id AS police_id, v_officer_name AS officer_name, v_password_hash AS password_hash, '✅ Data found' AS message;
+    END IF;
+
+END$$
+
+DELIMITER;
+
+--2 ✅ লগইনের পরে লগ টেবিলে ইনসার্ট করার ট্রিগার
+DELIMITER $$
+
+CREATE TRIGGER trg_after_login_log
+AFTER INSERT ON police_station-- police_station টেবিলে ডেটা ইনসার্ট হওয়ার পর চালু হবে
+FOR EACH ROW-- প্রতিটি নতুন রো - এর জন্য ট্রিগার কাজ করবে
+BEGIN
+    INSERT INTO invstregistrationlogin_logs(police_id, registered_at)-- অডিট টেবিলে ডেটা ইনসার্ট করা হচ্ছে
+VALUES(NEW.police_id, NOW()); --নতুন রো - এর police_id, 'LOGIN' টেক্সট, এবং রেজিস্ট্রেশনের সময় বসানো হচ্ছে
+END$$
+
+DELIMITER;
+
+-- ✅ Criminal Information Insert করার জন্য Stored Procedure
+-- 📌 কেন Trigger ব্যবহার করিনি ?
+    --1️⃣ Trigger - এর রেজাল্ট তৎক্ষণাৎ API তে ফেরত আনা যায় না।
+--2️⃣ এখানে API কল করার পর দুই টেবিলের ডাটা একসাথে ফিরিয়ে দিতে হবে → Trigger সেটা করতে পারবে না।
+--3️⃣ Stored Procedure থেকে insert + select একই সাথে করা যায়, Immediate Response সম্ভব।
+--4️⃣ Trigger Debug করা কঠিন → সমস্যা হলে সোর্স ট্র্যাক পাওয়া কঠিন।
+--5️⃣ Business Logic SP - তে রাখলে API থেকে সহজে কন্ট্রোল ও মেইন্টেইন করা যায়, Trigger - এ লুকিয়ে যায় না।
+
+-- ১. ডাটাবেজ সিলেক্ট করো
+USE mydatabase;
+
+ALTER TABLE criminal_info MODIFY photo_url JSON;
+
+ALTER TABLE criminal_info 
+ADD COLUMN crStatus ENUM('A', 'I', 'S') NOT NULL DEFAULT 'A';
+
+ALTER TABLE criminal_info 
+MODIFY COLUMN crStatus ENUM('A', 'I', 'S') NOT NULL DEFAULT 'A';
+--where A: Active, I : Inactive, S : Suspended
+
+-- ২. আগের প্রোসিডিউর ড্রপ করো
+DROP PROCEDURE IF EXISTS sp_criminal_info;
+
+-- ৩. খুব সিম্পল প্রোসিডিউর বানাও
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_criminal_info(
+    IN p_investigOfficer_id VARCHAR(50), --পুলিশ আইডি(তদন্তকারী অফিসার আইডি)
+    IN c_crname VARCHAR(100), --অপরাধীর নাম
+    IN c_craadhaar VARCHAR(20), --আধার নম্বর
+    IN c_craddress TEXT, --ঠিকানা
+    IN c_crphone VARCHAR(15), --ফোন নম্বর
+    IN c_crtype VARCHAR(100), --অপরাধের ধরন(Description table এর জন্য)
+    IN c_crfir_place TEXT, --FIR এর স্থান
+    IN c_creventdate DATE, --অপরাধ সংঘটনের তারিখ
+    IN c_creventtime TIME, --অপরাধ সংঘটনের সময়
+    IN c_photo_url JSON, --ছবি URL 
+    --ALTER TABLE criminal_info MODIFY c_photo_url JSON;
+--TEXT দিয়ে ছবি URL গুলো রাখলে কী হয় ?
+    --c_photo_url = '["url1","url2","url3"]' এটা আসলে একটা বড় টেক্সট স্ট্রিং, ডাটাবেজ নিজে এটা JSON হিসেবে বুঝবে না।
+--JSON টাইপ দিয়ে রাখলে কী হয় ?
+    -- =["url1", "url2", "url3"]-- এটা JSON হিসেবে সেভ হয়
+    IN c_created_at TIMESTAMP, --অভিযোগ নিবন্ধনের তারিখ
+    IN c_local_file_path VARCHAR(500)-- লোকাল ফাইল পাথ
+)
+BEGIN
+	DECLARE p_investigOfficerID VARCHAR(50); --পুলিশ আইডি(তদন্তকারী অফিসার আইডি)
+    DECLARE last_id INT;
+    DECLARE err_msg TEXT DEFAULT '';
+
+--Error handler
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+ROLLBACK;
+END;
+
+    START TRANSACTION;
+
+--ডাটাবেস থেকে তথ্য আনা Police Id Present Or Not ?
+    SELECT police_id INTO p_investigOfficerID FROM police_station WHERE police_id = p_investigOfficer_id;
+
+--NULL / BLANK চেক
+    IF  p_investigOfficerID IS NULL OR TRIM(p_investigOfficerID) = '' OR
+        c_crname IS NULL OR TRIM(c_crname) = '' OR
+        c_craadhaar IS NULL OR TRIM(c_craadhaar) = '' OR
+        c_craddress IS NULL OR TRIM(c_craddress) = '' OR
+        c_crphone IS NULL OR TRIM(c_crphone) = '' OR
+        c_crtype IS NULL OR TRIM(c_crtype) = '' OR
+        c_crfir_place IS NULL OR TRIM(c_crfir_place) = '' OR
+        c_creventdate IS NULL OR
+        c_creventtime IS NULL OR
+        c_photo_url IS NULL OR TRIM(c_photo_url) = '' OR
+        c_created_at IS NULL OR
+        c_local_file_path IS NULL OR TRIM(c_local_file_path) = ''
+THEN
+ROLLBACK;
+        SELECT '⚠️ Error: One or more input values are NULL or blank' AS error_message;
+ELSE
+--প্রথম টেবিলে ইনসার্ট
+        INSERT INTO criminal_info
+    (police_id, name, aadhaar, address, phone, photo_url, created_at, local_file_path)
+VALUES
+    (p_investigOfficerID, c_crname, c_craadhaar, c_craddress, c_crphone, c_photo_url, c_created_at, c_local_file_path);
+
+        SET last_id = LAST_INSERT_ID();
+
+--criminal log টেবিলে ইনসার্ট
+        INSERT INTO criminal_log
+    (criminal_id, action, action_time)
+VALUES
+    (last_id, 'A', c_created_at);
+
+--দ্বিতীয় টেবিলে ইনসার্ট
+        INSERT INTO criminal_description
+    (criminal_id, police_id, `type`, fir_place, `date`, `time`, created_at)
+VALUES
+    (last_id, p_investigOfficerID, c_crtype, c_crfir_place, c_creventdate, c_creventtime, NOW());
+
+--সফল হলে ডেটা রিটার্ন
+SELECT
+ci.police_id AS p_investigOfficerID,
+    ci.name AS c_crname,
+        ci.aadhaar AS c_craadhaar,
+            ci.address AS c_craddress,
+                ci.phone AS c_crphone,
+                    cd.`type` AS crtype,
+                        cd.fir_place,
+                        cd.`date` AS creventdate,
+                            cd.`time` AS creventtime,
+                                ci.photo_url AS c_photo_url,
+                                    ci.local_file_path AS c_local_file_path,
+                                        ci.created_at AS c_created_at
+        FROM criminal_info AS ci
+        JOIN criminal_description AS cd ON ci.id = last_id 
+        WHERE cd.criminal_id = last_id;
+
+COMMIT; -- ✅ কোনো এরর না হলে এখানে কমিট হবে
+    END IF;
+END$$
+
+DELIMITER;
+
+CALL sp_criminal_info(
+    'P001',
+    'Test Name',
+    '123456789012',
+    'Test Address',
+    '9876543210',
+    'Robbery',
+    'Police Station Area',
+    '2025-08-11',
+    '14:30:00',
+    'http://photo.jpg',
+    NOW(),
+    '/local/path/photo.jpg'
+);
+
+-- ৫. এরর বা ওয়ার্নিং দেখো
+SHOW WARNINGS;
+
+-- ✅ Criminal Information Update করার জন্য Stored Procedure
+
+DROP PROCEDURE IF EXISTS sp_criminal_info_update; --আগের যদি একই নামে কোনো স্টোরড প্রোসিডিউর থাকে, সেটা ডিলিট করে দিচ্ছে যাতে নতুন করে তৈরি করা যায়
+DELIMITER $$-- MySQL - এ ডেলিমিটার বদলানো হচ্ছে, যাতে প্রোসিডিউরের ভিতরে থাকা একাধিক `;` কে MySQL স্টেটমেন্টের শেষ ভেবে এক্সিকিউট না করে
+
+CREATE PROCEDURE sp_criminal_info_update(
+    IN p_investigOfficer_id VARCHAR(50), -- ইনপুট: তদন্তকারী অফিসারের আইডি
+    IN c_crid INT,                       -- ইনপুট: অপরাধীর আইডি
+    IN c_crname VARCHAR(100),            -- ইনপুট: অপরাধীর নাম
+    IN c_craadhaar VARCHAR(20),          -- ইনপুট: আধার নম্বর
+    IN c_craddress TEXT,                 -- ইনপুট: অপরাধীর ঠিকানা
+    IN c_crphone VARCHAR(15),            -- ইনপুট: অপরাধীর ফোন নম্বর
+    IN c_crtype VARCHAR(100),            -- ইনপুট: অপরাধের ধরন
+    IN c_crfir_place TEXT,               -- ইনপুট: FIR হওয়ার স্থান
+    IN c_creventdate DATE,               -- ইনপুট: অপরাধ সংঘটনের তারিখ
+    IN c_creventtime TIME,               -- ইনপুট: অপরাধ সংঘটনের সময়
+    IN c_photo_url JSON,                 -- ইনপুট: অপরাধীর ছবির URL (JSON array)
+    IN c_created_at TIMESTAMP,           -- ইনপুট: এন্ট্রি তৈরির সময়
+    IN c_local_file_path VARCHAR(500)    -- ইনপুট: লোকাল ফাইল পাথ
+)
+proc_body:BEGIN   -- লেবেল দেওয়া হলো, যাতে LEAVE ব্যবহার করা যায়
+    DECLARE p_criminalID INT;        -- criminal_info টেবিলের অপরাধীর আইডি রাখার ভেরিয়েবল
+    DECLARE p_criminaldesID INT;     -- criminal_description টেবিলের আইডি রাখার ভেরিয়েবল
+    DECLARE err_msg TEXT DEFAULT ''; -- এরর মেসেজ রাখার ভেরিয়েবল
+
+    -- SQL exception হলে কী হবে
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        ROLLBACK;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+    END;
+    -- ইনপুট ভ্যালু চেক করা
+    IF  p_investigOfficer_id IS NULL OR TRIM(p_investigOfficer_id) = '' OR
+        c_crid IS NULL OR c_crid = 0 OR
+        c_crname IS NULL OR TRIM(c_crname) = '' OR
+        c_craadhaar IS NULL OR TRIM(c_craadhaar) = '' OR
+        c_craddress IS NULL OR TRIM(c_craddress) = '' OR
+        c_crphone IS NULL OR TRIM(c_crphone) = '' OR
+        c_crtype IS NULL OR TRIM(c_crtype) = '' OR
+        c_crfir_place IS NULL OR TRIM(c_crfir_place) = '' OR
+        c_creventdate IS NULL OR
+        c_creventtime IS NULL OR
+        c_photo_url IS NULL OR JSON_VALID(c_photo_url) = 0 OR JSON_LENGTH(c_photo_url) = 0 OR
+        c_created_at IS NULL OR
+        c_local_file_path IS NULL OR TRIM(c_local_file_path) = '' THEN
+            ROLLBACK;
+            SELECT '⚠️ Error: One or more input values are NULL or blank' AS error_message;
+            LEAVE proc_body;
+    END IF;
+
+    START TRANSACTION; --  ট্রানজ্যাকশন শুরু
+
+    -- criminal_info টেবিলে ওই criminal_id আছে কি না দেখা
+    SELECT id INTO p_criminalID FROM criminal_info WHERE id = c_crid;
+    IF p_criminalID IS NULL THEN
+        ROLLBACK;
+        SELECT '❌ Error: Criminal ID not found in criminal_info' AS error_message;
+        LEAVE proc_body;
+    END IF;
+
+    -- criminal_info টেবিল আপডেট
+    UPDATE criminal_info
+    SET police_id = p_investigOfficer_id,
+        name = c_crname,
+        aadhaar = c_craadhaar,
+        address = c_craddress,
+        phone = c_crphone,
+        photo_url = c_photo_url,
+        created_at = c_created_at,
+        local_file_path = c_local_file_path
+    WHERE id = c_crid;
+
+    -- criminal_log টেবিলে লগ যোগ করা
+    INSERT INTO criminal_log(criminal_id, action, action_time)
+    VALUES(c_crid, 'UPDATE', c_created_at);
+
+    -- criminal_description আইডি বের করা
+    SELECT id INTO p_criminaldesID FROM criminal_description WHERE criminal_id = c_crid;
+    IF p_criminaldesID IS NULL THEN
+        ROLLBACK;
+        SELECT '❌ Error: No record found in criminal_description for this criminal_id' AS error_message;
+        LEAVE proc_body;
+    END IF;
+
+    -- criminal_description টেবিল আপডেট করা
+    UPDATE criminal_description
+    SET police_id = p_investigOfficer_id,
+        `type` = c_crtype,
+        fir_place = c_crfir_place,
+        `date` = COALESCE(c_creventdate, CURDATE()),
+        `time` = COALESCE(c_creventtime, CURTIME())
+    WHERE criminal_id = c_crid AND id = p_criminaldesID;
+
+    -- আপডেটের পর ডেটা ফেরত দেওয়া
+    SELECT
+        ci.id AS p_criminalID,
+        ci.police_id AS p_investigOfficerID,
+        ci.name AS c_crname,
+        ci.aadhaar AS c_craadhaar,
+        ci.address AS c_craddress,
+        ci.phone AS c_crphone,
+        cd.`type` AS crtype,
+        cd.fir_place,
+        cd.`date` AS creventdate,
+        cd.`time` AS creventtime,
+        ci.photo_url AS c_photo_url,
+        ci.local_file_path AS c_local_file_path,
+        ci.created_at AS c_created_at,
+        ci.crStatus AS c_crStatus
+    FROM criminal_info AS ci
+    JOIN criminal_description AS cd ON ci.id = cd.criminal_id
+    WHERE cd.criminal_id = c_crid;
+
+    COMMIT; -- সবকিছু ঠিক থাকলে সেভ করা
+END$$
+
+DELIMITER; --আবার ডেলিমিটার আগের অবস্থায় ফিরিয়ে আনা
+
+
+-- ✅ Criminal Information Status Change করার জন্য Stored Procedure
+USE mydatabase;
+DROP PROCEDURE IF EXISTS sp_set_criminal_status;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_set_criminal_status(
+    IN c_criminal_id INT, --ইনপুট: যে অপরাধীর আইডি ইনঅ্যাক্টিভ করতে হবে
+    IN c_current_status ENUM('A', 'I', 'S')-- ইনপুট: বর্তমান স্ট্যাটাস
+)
+proc_label: BEGIN-- এখানে লেবেল ব্যবহার করলাম
+    DECLARE err_msg TEXT DEFAULT ''; --এরর মেসেজ রাখার জন্য ভ্যারিয়েবল
+
+--SQL এরর হ্যান্ডলার
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+ROLLBACK;
+END;
+
+-- ⚠️ ইনপুট ভ্যালিডেশন
+    IF c_criminal_id IS NULL 
+       OR c_current_status NOT IN('A', 'I', 'S') THEN
+        SELECT '⚠️ Invalid input parameters!' AS error_message;
+        LEAVE proc_label; --লেবেল দিয়ে বের হও
+    END IF;
+
+    START TRANSACTION;
+
+--1️⃣ criminal_info আপডেট
+    UPDATE criminal_info SET crStatus = c_current_status, created_at = NOW() WHERE id = c_criminal_id;
+
+    IF ROW_COUNT() = 0 THEN
+ROLLBACK;
+        SELECT '⚠️ No matching active record found or already inactive' AS error_message;
+        LEAVE proc_label; --লেবেল দিয়ে বের হও
+    END IF;
+
+--2️⃣ criminal_log ইনসার্ট
+-- INSERT INTO criminal_log(criminal_id, action, action_time)
+-- VALUES(c_criminal_id, c_current_status, NOW());
+INSERT INTO criminal_log (criminal_id, action, action_time)
+VALUES (
+    c_criminal_id,
+    CONCAT(
+        'Status Change - ',
+        CASE c_current_status
+            WHEN 'A' THEN 'Active'
+            WHEN 'I' THEN 'Inactive'
+            WHEN 'S' THEN 'Suspended'
+            ELSE 'Unknown'
+        END
+    ),
+    NOW()
+);
+
+COMMIT;
+
+-- ✅ criminal_info থেকে ফাইনাল রেজাল্ট দেখাও
+SELECT
+ci.id AS crcriminal_id,
+    ci.crStatus,
+    ci.created_at,
+    CONCAT(
+        '✅ Criminal Record Status Changed to ',
+        CASE c_current_status
+        WHEN 'A' THEN 'Active'
+        WHEN 'I' THEN 'Inactive'
+        WHEN 'S' THEN 'Suspended'
+        ELSE 'Unknown'
+    END
+    ) AS msg
+    FROM criminal_info ci
+    WHERE ci.id = c_criminal_id;
+
+END proc_label$$
+DELIMITER;
+
+
+-- ✅ Individual View করার জন্য Stored Procedure
+USE mydatabase;
+DROP PROCEDURE IF EXISTS sp_police_criminal_individualview;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_police_criminal_individualview(
+    IN c_criminal_id INT,
+    IN p_police_id VARCHAR(50)
+)
+proc_label: BEGIN
+    DECLARE err_msg TEXT DEFAULT '';     
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+END;
+
+--ইনপুট ভ্যালিডেশন
+    IF c_criminal_id IS NULL OR p_police_id IS NULL THEN
+        SELECT '⚠️ Invalid input parameters!' AS error_message;
+        LEAVE proc_label;
+    END IF;
+
+--মূল ডেটা সিলেক্ট
+SELECT
+invst.police_id AS invst_police_id,
+    invst.officer_name AS invst_officer_name,
+        invst.branch_name AS invst_branch_name,
+            invst.district AS invst_district,
+                ci.name AS c_crname,
+                    ci.aadhaar AS c_craadhaar,
+                        ci.address AS c_craddress,
+                            ci.phone AS c_crphone,
+                                cd.`type` AS crtype,
+                                    cd.fir_place AS crfir_place,
+                                        cd.`date` AS creventdate,
+                                            cd.`time` AS creventtime,
+                                                ci.photo_url AS c_photo_url,
+                                                    ci.local_file_path AS c_local_file_path,
+                                                        ci.created_at AS c_created_at              
+    FROM view_police_station AS invst
+    JOIN view_criminal_info AS ci 
+        ON invst.police_id = p_police_id
+    JOIN view_criminal_description AS cd 
+        ON ci.id = c_criminal_id
+	WHERE invst.police_id = p_police_id 
+      AND ci.id = c_criminal_id
+    LIMIT 1;
+
+--যদি কিছুই না মেলে
+    IF ROW_COUNT() = 0 THEN
+        SELECT NULL AS police_id, NULL AS id, '❌ Police ID & Criminal ID not found' AS message;
+    END IF;
+
+END proc_label$$
+DELIMITER;
+
+-- ✅ All View করার জন্য Stored Procedure
+USE mydatabase;
+DROP PROCEDURE IF EXISTS sp_all_criminal_statusview;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_all_criminal_statusview(
+    IN p_police_id VARCHAR(50)
+)
+proc_label: BEGIN
+    DECLARE err_msg TEXT DEFAULT '';     
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+END;
+
+--ইনপুট ভ্যালিডেশন
+    IF p_police_id IS NULL THEN
+        SELECT '⚠️ Invalid input parameters!' AS error_message;
+        LEAVE proc_label;
+    END IF;
+
+--মূল ডেটা সিলেক্ট
+SELECT
+invst.police_id AS invst_police_id,
+    invst.officer_name AS invst_officer_name,
+        invst.branch_name AS invst_branch_name,
+            invst.district AS invst_district,
+                ci.name AS c_crname,
+                    ci.aadhaar AS c_craadhaar,
+                        ci.address AS c_craddress,
+                            ci.phone AS c_crphone,
+                                cd.`type` AS crtype,
+                                    cd.fir_place AS crfir_place,
+                                        cd.`date` AS creventdate,
+                                            cd.`time` AS creventtime,
+                                                ci.photo_url AS c_photo_url,
+                                                    ci.local_file_path AS c_local_file_path,
+                                                        ci.created_at AS c_created_at              
+    FROM view_police_station AS invst
+    JOIN view_criminal_info AS ci 
+        ON invst.police_id = p_police_id
+    JOIN view_criminal_description AS cd 
+        ON ci.id = cd.criminal_id;
+
+--যদি কিছুই না মেলে
+    IF ROW_COUNT() = 0 THEN
+        SELECT NULL AS police_id, NULL AS id, '❌ Police ID & Criminal ID not found' AS message;
+    END IF;
+
+END proc_label$$
+DELIMITER;
+
+-- ✅ Individual View Data(Make PDF) করার জন্য Stored Procedure
+USE mydatabase;
+DROP PROCEDURE IF EXISTS sp_get_criminal_info;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_get_criminal_info(
+    IN c_criminal_id INT, --Criminal ID
+    IN p_police_id VARCHAR(50)-- Police ID
+)
+proc_label: BEGIN
+    DECLARE err_msg TEXT DEFAULT '';
+
+-- ❌ Error Handler
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+END;
+
+--ইনপুট চেক
+    IF c_criminal_id IS NULL OR p_police_id IS NULL OR p_police_id = '' THEN
+        SELECT '⚠️ Invalid input parameters!' AS error_message;
+        LEAVE proc_label;
+    END IF;
+
+--ডেটা ফেচ
+SELECT
+invst.police_id         AS invst_police_id,
+    invst.officer_name      AS invst_officer_name,
+        invst.branch_name       AS invst_branch_name,
+            invst.district          AS invst_district,
+                ci.name                 AS c_crname,
+                    ci.aadhaar              AS c_craadhaar,
+                        ci.address              AS c_craddress,
+                            ci.phone                AS c_crphone,
+                                cd.`type`               AS crtype,
+                                    cd.fir_place            AS crfir_place,
+                                        cd.`date`               AS creventdate,
+                                            cd.`time`               AS creventtime,
+                                                ci.photo_url            AS c_photo_url,
+                                                    ci.local_file_path      AS c_local_file_path,
+                                                        ci.created_at           AS c_created_at
+    FROM view_police_station AS invst
+    JOIN view_criminal_info AS ci 
+        ON ci.id = c_criminal_id
+    JOIN view_criminal_description AS cd 
+        ON cd.criminal_id = ci.id
+    WHERE invst.police_id = p_police_id
+      AND ci.id = c_criminal_id
+    LIMIT 1;
+
+-- ❌ যদি কিছুই না মেলে
+    IF ROW_COUNT() = 0 THEN
+        SELECT NULL AS police_id, NULL AS id, '❌ Police ID & Criminal ID not found' AS message;
+    END IF;
+
+END proc_label$$
+DELIMITER;
+
+CALL sp_get_criminal_info(27, 'WBCID09082025BANK1');
+
+-- ✅ Individual EXCEL View Data(Make EXCEL) করার জন্য Stored Procedure
+
+USE mydatabase;                                           -- ▶️ ডাটাবেস সিলেক্ট করা হলো
+
+DROP PROCEDURE IF EXISTS sp_criminal_full_detailsForExcelView;   -- ▶️ যদি আগের একই নামে SP থাকে, ডিলিট করে দাও
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_criminal_full_detailsForExcelView(
+    IN c_criminal_id INT                                  -- ▶️ ইনপুট প্যারামিটার: criminal_id
+)
+BEGIN
+    DECLARE err_msg TEXT DEFAULT ''; -- এরর মেসেজ রাখার ভেরিয়েবল
+    -- SQL exception হ্যান্ডেল করা
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        GET DIAGNOSTICS CONDITION 1 err_msg = MESSAGE_TEXT;
+        ROLLBACK;
+        SELECT CONCAT('❌ Error Occurred: ', err_msg) AS error_message;
+    END;
+
+    -- ইনপুট ভ্যালু চেক করা (criminal_id NULL বা 0 হলে error দেখাবে)
+    IF c_criminal_id IS NULL OR c_criminal_id = 0 THEN -- ▶️ INT টাইপ ভ্যারিয়েবলকে TRIM করা যায় না। এটা কেবল VARCHAR/TEXT এ চলে। যেহেতু criminal_id সবসময় সংখ্যা, শুধু IS NULL আর =0 চেক করলেই যথেষ্ট।
+        ROLLBACK;
+        SELECT '⚠️ Error: criminal_id cannot be NULL or 0' AS error_message;
+    ELSE
+        -- ✅ Criminal Info + Description JOIN করে ডেটা আনা
+        SELECT
+            ci.id               AS criminal_id,           -- ▶️ অপরাধীর আইডি
+            ci.police_id        AS investigOfficer_id,    -- ▶️ কোন অফিসার ইনসার্ট করেছে
+            ci.`name`           AS crname,                -- ▶️ অপরাধীর নাম
+            ci.aadhaar          AS craadhaar,             -- ▶️ আধার নম্বর
+            ci.address          AS craddress,             -- ▶️ ঠিকানা
+            ci.phone            AS crphone,               -- ▶️ ফোন
+            ci.photo_url        AS photo_url_json,        -- ▶️ ক্লাউড URL গুলো (JSON স্ট্রিং)
+            ci.local_file_path  AS local_path_json,       -- ▶️ লোকাল পাথ গুলো (JSON স্ট্রিং)
+            ci.created_at       AS created_at,            -- ▶️ ইনসার্ট সময়
+            cd.`type`           AS crtype,                -- ▶️ অপরাধের ধরন
+            cd.fir_place        AS crfir_place,           -- ▶️ FIR হওয়া স্থান
+            cd.`date`           AS creventdate,           -- ▶️ ঘটনার তারিখ
+            cd.`time`           AS creventtime,           -- ▶️ ঘটনার সময়
+            cd.created_at       AS desc_created_at        -- ▶️ Description ইনসার্ট সময়
+        FROM criminal_info AS ci
+        LEFT JOIN criminal_description AS cd
+               ON cd.criminal_id = ci.id
+        WHERE ci.id = c_criminal_id;
+    END IF;
+END$$
+
+DELIMITER ;
+
+

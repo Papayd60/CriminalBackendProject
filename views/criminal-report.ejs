@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <!-- Optional JavaScript -->
+  <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.slim.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" crossorigin="anonymous"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+    crossorigin="anonymous">
+  <meta charset="UTF-8">
+  <title>Criminal Report</title>
+  <style>
+    .container-fluid {
+      width: 100%;
+      padding-right: 15px;
+      padding-left: 15px;
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    @media only screen and (max-width: 1366px) {
+      .container {
+        max-width: 1366px;
+      }
+    }
+
+    .float-element {
+      float: left;
+      /* padding-top: 16px; */
+    }
+
+    .ml-auto,
+    .mx-auto {
+      margin-left: auto !important;
+    }
+
+    .logos {
+      padding: 6px 6px 6px 50px;
+      float: left;
+    }
+
+    .logoc {
+      min-width: 345px;
+    }
+
+    .logoc a strong {
+      font-weight: 600;
+      display: block;
+      font-size: 80%;
+    }
+
+    @media (min-width: 640px) {
+      .logoc a strong {
+        padding-top: 11px;
+      }
+    }
+
+    .logoc a span {
+      display: block;
+      font-weight: 900;
+      font-size: 110%;
+    }
+
+    .disatrict_cont {
+      display: block;
+      padding-top: 29px;
+      font-weight: 900;
+      font-size: 100%;
+    }
+
+    .district_bengal {
+      color: #000;
+    }
+
+    .district_englist {
+      color: #000;
+      text-transform: uppercase;
+    }
+
+    #header {
+      width: 100%;
+      height: auto;
+      padding: 0;
+      margin: 0 auto;
+    }
+
+    #sidebarA {
+      width: 200px;
+      height: 800px;
+      padding: 0;
+      margin: 0;
+      background: blue;
+      float: left;
+    }
+
+    #main {
+      width: 800px;
+      height: 800px;
+      padding: 0;
+      margin: 0 auto;
+      background: purple;
+    }
+
+    #sidebarB {
+      width: 200px;
+      height: 800px;
+      padding: 0;
+      margin: 0;
+      background: blue;
+      float: right;
+    }
+
+    #footer {
+      width: 100%;
+      height: auto;
+      padding: 0;
+      margin: 0 auto;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .photo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .info-table td,
+    .info-table th {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+
+    .info-table th {
+      background-color: #f4f4f4;
+    }
+  </style>
+
+</head>
+
+<body style="border: 2px solid black; padding: 10px;">
+
+  <div style="border: 2px solid black;padding: 10px;margin: 20px;">
+
+    <div id="header">
+      <div class="container-fluid" id="pramit">
+        <div class="container">
+          <div class="row">
+            <div class="col-md-4"></div>
+            <div class="col-md-4">
+              <div class="row" style="
+    display: flex;
+    justify-content: center; /* Centers horizontally */
+    align-items: center;   /* Centers vertically */
+">
+                <div class="col-md-3 mx-2 pr-0 py-0">
+                  <h1 class="logoc">
+                    <img class="national_emblem"
+                      src="https://res.cloudinary.com/dvdzohjye/image/upload/v1755369513/ASOKCHAKRA_cp5uod.png"
+                      alt="The Ministry of Home Affairs" title="The Ministry of Home Affairs" style="
+    height: 100px;
+">
+
+                  </h1>
+                </div>
+                <div class="col-md-3 mx-2 mb-0 pl-0 py-0">
+                  <div class="row my-0 py-0" style="font-size: 10px;">
+                    <span href="#" title="The Ministry of Home Affairs (MHA)" rel="home">
+                      <span style="color : black;"><strong>
+                          <p>गृह मंत्रालय</p>
+                        </strong>
+                        <p> Ministry of</p><span><strong>
+                            <p>Home Affairs</p>
+                          </strong></span>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4"></div>
+          </div>
+        </div>
+      </div>
+
+
+      <hr>
+      <div class="container-fluid" id="pramit">
+        <div class="container">
+          <div class="row">
+            <div class="col-md-8">
+              <div class="row">
+                <div class="col-md-12">
+                  <div class="row">
+                    <div class="logos mr-0"><a href="#"><img
+                          src="https://cybercrimewing.wb.gov.in/tenancy/assets/images/logo\tenanthowrahpc.primary_logo1714312633.png"
+                          style="height:80px" alt="Logo"></a></div>
+                    <!-- <div class="disatrict_cont"><a class="district_bengal" lang="te" href="javascript:void(0)"  target="_blank">পশ্চিমবঙ্গ সরকার</a><br>
+								<a class="district_englist" lang="te" href=""  target="_blank">Cyber Crime Wing</a></div> -->
+                    <div class="disatrict_cont my-1 py-3">
+                      <font class="district_bengal" lang="te">পশ্চিমবঙ্গ সরকার</font><br>
+                      <font class="district_englist" lang="te">Cyber Crime Wing</font>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2 ml-auto float-element">
+              <a href="#"><img
+                  src="https://cybercrimewing.wb.gov.in/tenancy/assets/images/logo\tenantcybercrimewing.secondary_logo1737086182.jpg"
+                  style="height: 90px;" target="_blank"></a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="container-fluid my-2">
+        <div class="row">
+          <div id="sidebarA mx-0 px-0" class="col-md-1">
+
+          </div>
+          <div id="main mx-2 px-2" class="col-md-10">
+            <h5 style="text-align: center;color: red;">Criminal Photo</h5>
+            <div class="photo">
+              <% let photoUrls=[]; if (criminal.c_photo_url) { try { if (typeof criminal.c_photo_url==="string" ) { if
+                (criminal.c_photo_url.trim().startsWith("[")) { photoUrls=JSON.parse(criminal.c_photo_url); } else {
+                photoUrls=criminal.c_photo_url.split(","); } } else if (Array.isArray(criminal.c_photo_url)) {
+                photoUrls=criminal.c_photo_url; } } catch (err) { console.error("Photo URL parsing error:", err); } } %>
+
+                <% if (photoUrls.length) { %>
+                  <% photoUrls.forEach(function(url) { %>
+                    <img src="<%= url.trim() %>" alt="Criminal Photo" style="width:150px; height:auto; margin:5px;" />
+                    <% }) %>
+                      <% } else { %>
+                        <p>No photos available</p>
+                        <% } %>
+            </div>
+
+
+            <!-- <h6 style="text-align: center;color: blue;">Criminal Report</h6> -->
+            <table class="info-table">
+              <tr>
+                <th class="report-header" colspan="3"><h6 style="text-align: center;color: rgb(0, 0, 0);">Investication Report</h6></th>
+              </tr>
+              <tr>
+                <th>Investigation Officer ID : </th>
+                <td>
+                  <%= criminal.invst_police_id %>
+                </td>
+              </tr>
+              <tr>
+                <th>Officer Name : </th>
+                <td>
+                  <%= criminal.invst_officer_name %>
+                </td>
+              </tr>
+              <tr>
+                <th>Branch : </th>
+                <td>
+                  <%= criminal.invst_branch_name %>
+                </td>
+              </tr>
+              <tr>
+                <th>District : </th>
+                <td>
+                  <%= criminal.invst_district %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Name : </th>
+                <td>
+                  <%= criminal.c_crname %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Aadhaar No : </th>
+                <td>
+                  <%= criminal.c_craadhaar %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Address : </th>
+                <td>
+                  <%= criminal.c_craddress %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Phone : </th>
+                <td>
+                  <%= criminal.c_crphone %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Crime Type : </th>
+                <td>
+                  <%= criminal.crtype %>
+                </td>
+              </tr>
+              <tr>
+                <th>FIR Place Of Criminal Activity : </th>
+                <td>
+                  <%= criminal.crfir_place %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Activity Date : </th>
+                <td>
+                  <%= criminal.creventdate %>
+                </td>
+              </tr>
+              <tr>
+                <th>Criminal Activity Time : </th>
+                <td>
+                  <%= criminal.creventtime %>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div id="sidebarB mx-0 px-0" class="col-md-1">
+
+          </div>
+        </div>
+      </div>
+
+
+      <div id="footer">
+        <div class="container-fluid my-4">
+          <div class="row">
+            <div class="col-md-10">
+              <p>Published Date: <span id="current-date"></span></p>
+              <p>Published Time: <span id="current-time"></span></p>
+              <script>
+                function updateDateTime() {
+                  const now = new Date();
+
+                  // Arrays to get the month name
+                  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+                  // Get the day, month name, and year
+                  const day = now.getDate();
+                  const month = monthNames[now.getMonth()];
+                  const year = now.getFullYear();
+
+                  // Manually build the date string in the "16 August 2025" format
+                  const formattedDate = `${day} ${month} ${year}`;
+
+                  // Formats the time to "08:31 PM"
+                  const timeOptions = { hour: 'numeric', minute: 'numeric', hour12: true };
+                  const formattedTime = now.toLocaleTimeString('en-US', timeOptions);
+
+                  // Places the formatted date and time into your HTML
+                  document.getElementById('current-date').textContent = formattedDate;
+                  document.getElementById('current-time').textContent = formattedTime;
+                }
+
+                // Call the function to display the date and time immediately
+                updateDateTime();
+
+                // Optionally, you can update the time every minute to keep it current
+                // setInterval(updateDateTime, 60000); 
+              </script>
+            </div>
+            <div class="col-md-2 text-align-center">
+              <span>Verified By , </span>
+              <img
+                src="https://res.cloudinary.com/dvdzohjye/image/upload/v1755369479/WhatsApp_Image_2025-06-09_at_8.23.35_PM-removebg-preview_hcaql1.png"
+                style="height: 100px;">
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+</body>
+
+</html>

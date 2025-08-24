@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Criminal Report</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .photo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .info-table td,
+    .info-table th {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+
+    .info-table th {
+      background-color: #f4f4f4;
+    }
+  </style>
+</head>
+
+<body>
+  <h1 style="text-align: center;color: red;">Criminal Photo</h1>
+  <div class="photo">
+    <% 
+      let photoUrls = [];
+
+      if (criminal.c_photo_url) {
+        try {
+          if (typeof criminal.c_photo_url === "string") {
+            // যদি JSON string হয় (square bracket দিয়ে শুরু)
+            if (criminal.c_photo_url.trim().startsWith("[")) {
+              photoUrls = JSON.parse(criminal.c_photo_url);
+            } else {
+              // যদি কমা দিয়ে আলাদা করা থাকে
+              photoUrls = criminal.c_photo_url.split(",");
+            }
+          } else if (Array.isArray(criminal.c_photo_url)) {
+            // আগে থেকেই Array হলে
+            photoUrls = criminal.c_photo_url;
+          }
+        } catch (err) {
+          console.error("Photo URL parsing error:", err);
+        }
+      }
+    %>
+
+    <% photoUrls.forEach(url => { %>
+      <!-- <img src="<%= url.trim() %>" alt="Criminal Photo" style="max-height:200px;"> -->
+      <img src="<%= url %>" alt="Criminal Photo" style="width:150px; height:auto; margin:5px;" />
+    <% }) %>
+  </div>
+
+  <h3 style="text-align: center;color: blue;">Criminal Report</h3>
+  <table class="info-table">
+    <tr>
+      <th>Investigation Officer ID : </th>
+      <td><%= criminal.invst_police_id %></td>
+    </tr>
+    <tr>
+      <th>Officer Name : </th>
+      <td><%= criminal.invst_officer_name %></td>
+    </tr>
+    <tr>
+      <th>Branch : </th>
+      <td><%= criminal.invst_branch_name %></td>
+    </tr>
+    <tr>
+      <th>District : </th>
+      <td><%= criminal.invst_district %></td>
+    </tr>
+    <tr>
+      <th>Criminal Name : </th>
+      <td><%= criminal.c_crname %></td>
+    </tr>
+    <tr>
+      <th>Criminal Aadhaar No : </th>
+      <td><%= criminal.c_craadhaar %></td>
+    </tr>
+    <tr>
+      <th>Criminal Address : </th>
+      <td><%= criminal.c_craddress %></td>
+    </tr>
+    <tr>
+      <th>Criminal Phone : </th>
+      <td><%= criminal.c_crphone %></td>
+    </tr>
+    <tr>
+      <th>Criminal Crime Type : </th>
+      <td><%= criminal.crtype %></td>
+    </tr>
+    <tr>
+      <th>FIR Place Of Criminal Activity : </th>
+      <td><%= criminal.crfir_place %></td>
+    </tr>
+    <tr>
+      <th>Criminal Activity Date : </th>
+      <td><%= criminal.creventdate %></td>
+    </tr>
+    <tr>
+      <th>Criminal Activity Time : </th>
+      <td><%= criminal.creventtime %></td>
+    </tr>
+  </table>
+</body>
+
+</html>

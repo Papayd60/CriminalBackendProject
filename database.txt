@@ -1,0 +1,441 @@
+** Concept Flow ----
+User Input → Stored Procedure → Main Table Insert/Update/Delete → Trigger → Log Table Update → (Optionally) View Table Auto Update
+
+-- Use the appropriate database
+USE mydatabase;
+
+-- Create police_station table
+CREATE TABLE IF NOT EXISTS police_station (
+  id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'স্টেশনের অভ্যন্তরীণ আইডি',
+  police_id VARCHAR(50) NOT NULL UNIQUE COMMENT 'অটো জেনারেটেড ইউনিক পুলিশ আইডি WBINC31072025HOOG1',
+  officer_name VARCHAR(100) NOT NULL COMMENT 'অফিসারের নাম',
+  inv_gender ENUM('M', 'F', 'O') NOT NULL COMMENT 'পুরুষ, মহিলা, বা অন্যান্য',
+  branch_name VARCHAR(100) NOT NULL COMMENT 'শাখার নাম যেমন - CID, ইনচার্জ',
+  district VARCHAR(100) NOT NULL COMMENT 'জেলা যেমন - HOOG, KOLKATA',
+  password_hash VARCHAR(255) NOT NULL COMMENT 'সুরক্ষিত পাসওয়ার্ড (হ্যাশ করা)',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'তৈরির সময়'
+);
+
+USE mydatabase;
+
+-- 🔒 Criminal Info টেবিল তৈরি
+CREATE TABLE IF NOT EXISTS criminal_info (
+  id INT NOT NULL AUTO_INCREMENT UNIQUE PRIMARY KEY COMMENT 'অটো জেনারেটেড অপরাধী আইডি WBCR31072025HOOG1',
+  police_id VARCHAR(50) COMMENT 'পুলিশ অফিসারের ইউনিক আইডি WBINC31072025HOOG1',
+  name VARCHAR(100) NOT NULL COMMENT 'অপরাধীর নাম',
+  cr_gender ENUM('M', 'F', 'O') NOT NULL COMMENT 'পুরুষ, মহিলা, বা অন্যান্য',
+  aadhaar VARCHAR(20) NOT NULL UNIQUE COMMENT 'আধার নম্বর',
+  address TEXT COMMENT 'ঠিকানা',
+  phone VARCHAR(15) UNIQUE COMMENT 'ফোন নম্বর',
+  photo_url TEXT COMMENT 'ছবির লিংক',
+  local_file_path VARCHAR(255) COMMENT 'লোকাল ফাইল পাথ',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'তৈরির তারিখ',
+  FOREIGN KEY (police_id) REFERENCES police_station(police_id) ON DELETE SET NULL
+);
+
+-- 📄 Criminal Description টেবিল তৈরি
+CREATE TABLE IF NOT EXISTS criminal_description (
+  id INT NOT NULL AUTO_INCREMENT UNIQUE PRIMARY KEY COMMENT 'অটো জেনারেটেড বিবরণ আইডি',
+  criminal_id INT NOT NULL COMMENT 'অপরাধীর ইউনিক আইডি (criminal_info এর id)',
+  police_id VARCHAR(50) COMMENT 'তদন্তকারী পুলিশ অফিসারের আইডি',
+  type VARCHAR(100) NOT NULL COMMENT 'অপরাধের ধরণ',
+  fir_place VARCHAR(100) COMMENT 'FIR কোথায় হয়েছে',
+  date DATE NOT NULL COMMENT 'অপরাধের তারিখ',
+  time TIME COMMENT 'অপরাধের সময়',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'তৈরির সময়',
+  FOREIGN KEY (criminal_id) REFERENCES criminal_info(id) ON DELETE CASCADE,
+  FOREIGN KEY (police_id) REFERENCES police_station(police_id) ON DELETE SET NULL
+);
+
+
+ধরুন, আপনি একটি পুলিশ রেজিস্ট্রেশন সিস্টেম বানাচ্ছেন। যখন একজন police_id রেজিস্টার হয়, তখন শুধু police_station টেবিলে
+ তার তথ্য গেলে পরে জানা যাবে না কবে বা কখন সেই রেজিস্ট্রেশন হয়েছিল।
+
+এই সময় registration_logs টেবিল একটি রেজিস্ট্রেশন ইতিহাস (history) সংরক্ষণ করে।
+
+CREATE TABLE registration_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  police_id VARCHAR(255) NOT NULL,
+  registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE invstregistrationregistration_logs (
+    registration_logs_id INT PRIMARY KEY AUTO_INCREMENT NOT NULL COMMENT 'অটো জেনারেটেড Registration অভ্যন্তরীণ আইডি',
+    police_id VARCHAR(50) NOT NULL UNIQUE COMMENT 'ইউনিক পুলিশ আইডি যেমন: WBINC31072025HOOG1',
+    officer_name VARCHAR(100) NOT NULL COMMENT 'অফিসারের নাম',
+    branch_name VARCHAR(100) NOT NULL COMMENT 'শাখার নাম যেমন: CID, ইনচার্জ',
+    district VARCHAR(100) NOT NULL COMMENT 'জেলা যেমন: HOOG, KOLKATA',
+    created_date DATE COMMENT 'তৈরির তারিখ',
+    created_time TIME COMMENT 'তৈরির সময়   23:22:40',
+    created_time_ampm VARCHAR(11) COMMENT 'তৈরির সময়  12:00:00 AM/PM'
+);
+
+CREATE TABLE criminal_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,         -- ইউনিক লগ আইডি, অটোইনক্রিমেন্ট
+    criminal_id INT NOT NULL,                       -- অপরাধীর আইডি (foreign key হিসেবে ব্যবহৃত হতে পারে)
+    action VARCHAR(50) NOT NULL,                    -- কী কাজ হয়েছে (যেমন: 'Set Inactive')
+    action_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- কখন করা হয়েছে, ডিফল্টে এখনকার সময়
+    CONSTRAINT fk_criminal FOREIGN KEY (criminal_id) REFERENCES criminal_info(id) 
+        ON DELETE CASCADE,                          -- যদি মূল criminal_info রেকর্ড ডিলিট হয়, তাহলে এই লগ রেকর্ডগুলোও স্বয়ংক্রিয়ভাবে মুছে যাবে (ডাটা ইন্টিগ্রিটি রাখার জন্য)
+    INDEX idx_criminal_id (criminal_id)             -- পারফরম্যান্সের জন্য ইনডেক্স
+);
+
+-- ALTER TABLE criminal_info MODIFY photo_url JSON;
+
+-- ALTER TABLE police_station 
+-- ADD COLUMN investStatus ENUM('A', 'I', 'S') NOT NULL DEFAULT 'A';
+
+-- ALTER TABLE police_station 
+-- MODIFY COLUMN investStatus ENUM('A', 'I', 'S') NOT NULL DEFAULT 'A';
+-- -- where A : Active, I : Inactive, S : Suspended 
+
+Table নাম পরিবর্তন (Rename) - RENAME TABLE police_station TO new_police_station;  -- police_station টেবিলের নাম বদলাবে
+
+নতুন কলাম যোগ করা - ALTER TABLE police_station ADD COLUMN station_code VARCHAR(20);  -- নতুন station_code কলাম অ্যাড হবে
+
+কলাম নাম পরিবর্তন - ALTER TABLE police_station CHANGE COLUMN old_column_name new_column_name VARCHAR(50);  -- old_column_name কে নতুন নামে পরিবর্তন করবে
+
+কলামের ডেটা টাইপ পরিবর্তন - ALTER TABLE police_station MODIFY COLUMN station_code INT;  -- station_code কলামের টাইপ INT হবে
+
+কলাম ডিলিট করা - ALTER TABLE police_station DROP COLUMN station_code;  -- station_code কলাম মুছে যাবে
+
+টেবিলের সব ডেটা ডিলিট করা - TRUNCATE TABLE police_station;  -- টেবিলের সব ডেটা ডিলিট হবে কিন্তু স্ট্রাকচার থাকবে / DELETE FROM police_station;  -- সব ডেটা ডিলিট হবে কিন্তু AUTO_INCREMENT রিসেট হবে না
+
+টেবিল সম্পূর্ণ ডিলিট - DROP TABLE police_station;  -- টেবিল ও ডেটা সম্পূর্ণ ডিলিট হয়ে যাবে
+
+Store Procedure Show & Delete - 
+SHOW PROCEDURE STATUS WHERE Db = 'your_database_name';  -- 📌 সব স্টোর প্রোসিডিউর দেখাবে
+SHOW CREATE PROCEDURE procedure_name;                   -- 📌 নির্দিষ্ট প্রোসিডিউরের কোড দেখাবে
+DROP PROCEDURE IF EXISTS procedure_name;  -- 📌 প্রোসিডিউর মুছে ফেলবে
+
+Trigger Show & Delete -
+SHOW TRIGGERS;  -- 📌 সব ট্রিগার দেখাবে
+SHOW CREATE TRIGGER trigger_name;  -- 📌 নির্দিষ্ট ট্রিগারের কোড দেখাবে
+DROP TRIGGER IF EXISTS trigger_name;  -- 📌 ট্রিগার মুছে ফেলবে
+
+Index Show & Delete - 
+SHOW INDEXES FROM table_name;  -- 📌 নির্দিষ্ট টেবিলের সব ইনডেক্স দেখাবে
+DROP INDEX index_name ON table_name;  -- 📌 ইনডেক্স মুছে ফেলবে
+
+View Show & Delete - 
+SHOW FULL TABLES WHERE Table_type = 'VIEW';  -- 📌 সব ভিউ দেখাবে
+SHOW CREATE VIEW view_name;                  -- 📌 ভিউ এর কোড দেখাবে
+DROP VIEW IF EXISTS view_name;  -- 📌 ভিউ মুছে ফেলবে
+
+| বিষয়       | Log Table 📝                           | View Table 👀                              |
+| ---------- | -------------------------------------- | ------------------------------------------ |
+| ডেটা রাখে? | হ্যাঁ (আসল ডেটা থাকে)                      | না (শুধু অন্য টেবিল থেকে ডেটা দেখায়)       |
+| উদ্দেশ্য   | ডেটার ইতিহাস বা পরিবর্তনের রেকর্ড রাখা          | ডেটা রিড-ওনলি ফরম্যাটে দেখা                |
+| পরিবর্তন?  | ডেটা আপডেট/ইনসার্ট করা যায়                 | সরাসরি ডেটা আপডেট করা যায় না               |
+| নিরাপত্তা  | রেকর্ড প্রুফ হিসেবে কাজে লাগে                 | হ্যাকারদের থেকে আসল টেবিল লুকাতে কাজে লাগে |
+
+View Table Create  - 
+-- Police Station View তৈরি
+CREATE VIEW view_police_station AS
+SELECT id, police_id, officer_name, branch_name, district, created_at
+FROM police_station
+WITH CHECK OPTION; -- 📌 ডেটা আসল টেবিলে যাবে, View-এও দেখা যাবে
+
+-- Criminal Info View তৈরি
+CREATE VIEW view_criminal_info AS
+SELECT 
+    id, 
+    police_id, 
+    name, 
+    aadhaar, 
+    address, 
+    phone, 
+    photo_url, 
+    local_file_path, 
+    created_at
+FROM criminal_info
+WITH CHECK OPTION; 
+-- 📌 মূল criminal_info টেবিলে insert/update করলে view-এও reflect হবে
+
+-- Criminal Description View তৈরি
+CREATE VIEW view_criminal_description AS
+SELECT 
+    id, 
+    criminal_id, 
+    police_id, 
+    type, 
+    fir_place, 
+    date, 
+    time, 
+    created_at
+FROM criminal_description
+WITH CHECK OPTION; 
+-- 📌 মূল criminal_description টেবিলে insert/update করলে view-এও reflect হবে
+
+INSERT INTO view_police_station (station_id, station_name, station_address)
+VALUES (1, 'Kolkata Central', 'Park Street');
+
+ডেডলক হলে SHOW PROCESSLIST; চালিয়ে চলমান কুয়েরির id নিয়ে KILL id; কমান্ড দিয়ে বন্ধ করুন।
+
+ALTER TABLE criminal_description ADD pdfFile LONGBLOB;
+
+| বিষয়                  | **VARCHAR(500)**                                                | **LONGBLOB**                          |
+| --------------------- | --------------------------------------------------------------- | ------------------------------------- |
+| **কি রাখে?**          | শুধু টেক্সট (যেমন ফাইলের নাম বা পাথ)                            | ফাইলের বাইনারি ডেটা (পুরো PDF ফাইল)   |
+| **স্টোরেজ**           | অনেক কম লাগে                                                    | অনেক বেশি লাগে                        |
+| **পারফরম্যান্স**      | ফাস্ট                                                           | স্লো (বড় ডেটা হ্যান্ডল করতে হয়)       |
+| **ব্যবহার কবে করবো?** | ফাইল সার্ভার/ফোল্ডারে রেখে শুধু নাম বা পাথ ডাটাবেসে রাখতে চাইলে | পুরো ফাইল সরাসরি ডাটাবেসে রাখতে চাইলে |
+| **উদাহরণ**            | `'criminal.pdf'` বা `'/uploads/criminal.pdf'`                   | 2MB PDF-এর বাইনারি ডেটা               |
+
+| Feature               | html-pdf               | puppeteer                     |
+| --------------------- | ---------------------- | ----------------------------- |
+| Rendering engine      | PhantomJS (deprecated) | Headless Chrome               |
+| Modern CSS/JS support | সীমিত                  | পূর্ণ                         |
+| Maintenance           | কম বা নেই              | Active                        |
+| File size (install)   | ছোট                    | বড়                            |
+| Performance           | দ্রুত কিন্তু কম ফিচার  | কিছুটা ভারী কিন্তু অনেক ফিচার |
+| Complex layouts       | প্রায় অসম্ভব           | সহজে সম্ভব                    |
+
+
+
+🗂️ Entity Relationship Diagram (ERD - Text Version)
+┌────────────────────────────┐
+│      police_station        │
+├────────────────────────────┤
+│ id              (PK)       │
+│ police_id       (UK)       │◄────────┐
+│ officer_name               │         │
+│ branch_name                │         │
+│ district                   │         │
+│ password_hash              │         │
+│ created_at                 │         │
+└────────────────────────────┘         │
+                                       │
+                                       │
+         ┌─────────────────────────────┘
+         ▼
+┌────────────────────────────┐
+│       criminal_info        │
+├────────────────────────────┤
+│ id              (PK)       │
+│ police_id       (FK)───────┘
+│ name                       │
+│ aadhaar         (UK)       │
+│ address                    │
+│ phone           (UK)       │
+│ photo_url                  │
+│ created_at                 │
+└────────────────────────────┘
+         │
+         │
+         ▼
+┌────────────────────────────┐
+│   criminal_description     │
+├────────────────────────────┤
+│ id              (PK)       │
+│ criminal_id     (FK)───────┐
+│ police_id       (FK)────┐  │
+│ type                       │
+│ fir_place                  │
+│ date                       │
+│ time                       │
+│ created_at                 │
+└────────────────────────────┘
+🔁 সম্পর্ক ব্যাখ্যা (Relation Explanation)
+police_station → criminal_info
+
+একটি police_station.police_id অনেক criminal_info রেকর্ডের উৎস হতে পারে।
+
+One-to-Many Relationship।
+
+criminal_info → criminal_description
+
+একজন অপরাধীর জন্য একাধিক বিবরণ থাকতে পারে।
+
+One-to-Many Relationship।
+
+criminal_description → police_station
+
+অপরাধের বর্ণনায় যে পুলিশ অফিসার তদন্ত করেন, তার police_id রাখা হয়।
+
+এটা optional হয় কারণ SET NULL করা হয়েছে।
+
+-- Assuming USE mydatabase is already done
+
+INSERT INTO police_station (police_id, officer_name, branch_name, district, password_hash)
+VALUES
+-- Alipurduar
+('WBINC31072025ALIP1', 'Rana Dey', 'Incharge', 'Alipurduar', 'hashed_pass_1'),
+('WBCID31072025ALIP1', 'Ritika Pal', 'CID', 'Alipurduar', 'hashed_pass_2'),
+
+-- Bankura
+('WBINC31072025BANK1', 'Sudip Das', 'Incharge', 'Bankura', 'hashed_pass_3'),
+('WBCID31072025BANK1', 'Soma Roy', 'CID', 'Bankura', 'hashed_pass_4'),
+
+-- Birbhum
+('WBINC31072025BIRB1', 'Arnab Sen', 'Incharge', 'Birbhum', 'hashed_pass_5'),
+('WBCID31072025BIRB1', 'Rina Das', 'CID', 'Birbhum', 'hashed_pass_6'),
+
+-- Cooch Behar
+('WBINC31072025COOC1', 'Arun Sharma', 'Incharge', 'Cooch Behar', 'hashed_pass_7'),
+('WBCID31072025COOC1', 'Minu Ghosh', 'CID', 'Cooch Behar', 'hashed_pass_8'),
+
+-- Dakshin Dinajpur
+('WBINC31072025DDIN1', 'Sajal Bhuiya', 'Incharge', 'Dakshin Dinajpur', 'hashed_pass_9'),
+('WBCID31072025DDIN1', 'Bani Pal', 'CID', 'Dakshin Dinajpur', 'hashed_pass_10'),
+
+-- Darjeeling
+('WBINC31072025DARJ1', 'Binod Rai', 'Incharge', 'Darjeeling', 'hashed_pass_11'),
+('WBCID31072025DARJ1', 'Pema Lama', 'CID', 'Darjeeling', 'hashed_pass_12'),
+
+-- Hooghly
+('WBINC31072025HOOG1', 'Debasis Saha', 'Incharge', 'Hooghly', 'hashed_pass_13'),
+('WBCID31072025HOOG1', 'Reshmi Nandi', 'CID', 'Hooghly', 'hashed_pass_14'),
+
+-- Howrah
+('WBINC31072025HOWR1', 'Tanmoy Ghosh', 'Incharge', 'Howrah', 'hashed_pass_15'),
+('WBCID31072025HOWR1', 'Pritha Banerjee', 'CID', 'Howrah', 'hashed_pass_16'),
+
+-- Jalpaiguri
+('WBINC31072025JALP1', 'Pritam Dutta', 'Incharge', 'Jalpaiguri', 'hashed_pass_17'),
+('WBCID31072025JALP1', 'Sonali Sinha', 'CID', 'Jalpaiguri', 'hashed_pass_18'),
+
+-- Jhargram
+('WBINC31072025JHAR1', 'Anup Mondal', 'Incharge', 'Jhargram', 'hashed_pass_19'),
+('WBCID31072025JHAR1', 'Reema Das', 'CID', 'Jhargram', 'hashed_pass_20'),
+
+-- Kalimpong
+('WBINC31072025KALI1', 'Ramesh Thapa', 'Incharge', 'Kalimpong', 'hashed_pass_21'),
+('WBCID31072025KALI1', 'Sangita Lepcha', 'CID', 'Kalimpong', 'hashed_pass_22'),
+
+-- Kolkata
+('WBINC31072025KOLK1', 'Subhankar Sen', 'Incharge', 'Kolkata', 'hashed_pass_23'),
+('WBCID31072025KOLK1', 'Neha Bose', 'CID', 'Kolkata', 'hashed_pass_24'),
+
+-- Malda
+('WBINC31072025MALD1', 'Ritwik Saha', 'Incharge', 'Malda', 'hashed_pass_25'),
+('WBCID31072025MALD1', 'Suchismita Das', 'CID', 'Malda', 'hashed_pass_26'),
+
+-- Murshidabad
+('WBINC31072025MURS1', 'Sandeep Sinha', 'Incharge', 'Murshidabad', 'hashed_pass_27'),
+('WBCID31072025MURS1', 'Arpita Chowdhury', 'CID', 'Murshidabad', 'hashed_pass_28'),
+
+-- Nadia
+('WBINC31072025NADI1', 'Dipak Das', 'Incharge', 'Nadia', 'hashed_pass_29'),
+('WBCID31072025NADI1', 'Jaya Ghosh', 'CID', 'Nadia', 'hashed_pass_30'),
+
+-- Paschim Bardhaman
+('WBINC31072025PBAR1', 'Rajib Ghosh', 'Incharge', 'Paschim Bardhaman', 'hashed_pass_31'),
+('WBCID31072025PBAR1', 'Tanima Roy', 'CID', 'Paschim Bardhaman', 'hashed_pass_32'),
+
+-- Paschim Medinipur
+('WBINC31072025PMED1', 'Mihir Das', 'Incharge', 'Paschim Medinipur', 'hashed_pass_33'),
+('WBCID31072025PMED1', 'Monika Das', 'CID', 'Paschim Medinipur', 'hashed_pass_34'),
+
+-- Purba Bardhaman
+('WBINC31072025EBAR1', 'Sourav Pal', 'Incharge', 'Purba Bardhaman', 'hashed_pass_35'),
+('WBCID31072025EBAR1', 'Piyali Ghosh', 'CID', 'Purba Bardhaman', 'hashed_pass_36'),
+
+-- Purba Medinipur
+('WBINC31072025EMED1', 'Satyajit Ray', 'Incharge', 'Purba Medinipur', 'hashed_pass_37'),
+('WBCID31072025EMED1', 'Ritika Basu', 'CID', 'Purba Medinipur', 'hashed_pass_38'),
+
+-- Purulia
+('WBINC31072025PURU1', 'Dilip Marandi', 'Incharge', 'Purulia', 'hashed_pass_39'),
+('WBCID31072025PURU1', 'Bipasha Majhi', 'CID', 'Purulia', 'hashed_pass_40'),
+
+-- Uttar Dinajpur
+('WBINC31072025UDIN1', 'Bijoy Roy', 'Incharge', 'Uttar Dinajpur', 'hashed_pass_41'),
+('WBCID31072025UDIN1', 'Mitali Das', 'CID', 'Uttar Dinajpur', 'hashed_pass_42'),
+
+-- 24 Parganas (North)
+('WBINC31072025N24P1', 'Tapas Sen', 'Incharge', 'North 24 Parganas', 'hashed_pass_43'),
+('WBCID31072025N24P1', 'Reshmi Mitra', 'CID', 'North 24 Parganas', 'hashed_pass_44'),
+
+-- 24 Parganas (South)
+('WBINC31072025S24P1', 'Asit Dey', 'Incharge', 'South 24 Parganas', 'hashed_pass_45'),
+('WBCID31072025S24P1', 'Mousumi Pal', 'CID', 'South 24 Parganas', 'hashed_pass_46');
+
+
+
+| **অপারেশন টাইপ**             | **কোথায় রাখবে?** | **কারণ**                                                       |
+| ---------------------------- | ---------------- | -------------------------------------------------------------- |
+| **Transaction**              | Database         | ডেটা কনসিসটেন্ট রাখতে (যেমন মাল্টি-টেবিল ইনসার্ট/আপডেট)        |
+| **Index**                    | Database         | সার্চ/ফিল্টার খুব দ্রুত করার জন্য                              |
+| **View**                     | Database         | জটিল Join/Query রেডি-টু-ইউজ ফর্মে রাখতে                        |
+| **Stored Procedure**         | Database         | জটিল লজিক, মাল্টি-টেবিল অপারেশন, ফিক্সড প্রসেস দ্রুত করার জন্য,দিয়ে ডাটা ইনসার্ট করো + লজিক কন্ট্রোল করো|
+| **Trigger**                  | Database         | Trigger দিয়ে লঘু কাজ (যেমন লগ রাখা) করানো ভালো ,Trigger দিয়ে ডাটা ইন্সার্ট করা যায়, কিন্তু ডাটা ম্যানেজ করা ঝামেলার কারণ হতে পারে (Debug, Error Handling কঠিন)|
+| **Validation**               | Node.js          | ইউজারের ইনপুট চেক করা, ভুল ডেটা আটকানো                         |
+| **Security**                 | Node.js          | পাসওয়ার্ড হ্যাশ, JWT টোকেন, রোল-বেসড অ্যাক্সেস                 |
+| **API Response**             | Node.js          | JSON ফরম্যাট, এরর/সাকসেস মেসেজ                                 |
+| **Business Logic (Dynamic)** | Node.js          | যেখানে ডেটা চেঞ্জিং কন্ডিশন অনুযায়ী হবে                        |
+
+** Just Overview 
+Stored Procedure (Insert)
+ DELIMITER $$
+CREATE PROCEDURE sp_insert_police_station(
+    IN p_station_name VARCHAR(100),
+    IN p_station_address TEXT
+)
+BEGIN
+    -- Main Table Insert
+    INSERT INTO police_station (station_name, station_address)
+    VALUES (p_station_name, p_station_address);
+
+    -- Log Table Insert
+    INSERT INTO police_station_log (station_id, action_type)
+    VALUES (LAST_INSERT_ID(), 'INSERT');
+END$$
+DELIMITER ;
+
+Insert Trigger
+DELIMITER $$
+CREATE TRIGGER trg_police_station_insert
+AFTER INSERT ON police_station
+FOR EACH ROW
+BEGIN
+    INSERT INTO police_station_log (station_id, action_type)
+    VALUES (NEW.station_id, 'INSERT');
+END$$
+DELIMITER ;
+
+Update Trigger
+DELIMITER $$
+CREATE TRIGGER trg_police_station_update
+AFTER UPDATE ON police_station
+FOR EACH ROW
+BEGIN
+    INSERT INTO police_station_log (station_id, action_type)
+    VALUES (NEW.station_id, 'UPDATE');
+END$$
+DELIMITER ;
+
+Delete Trigger
+DELIMITER $$
+CREATE TRIGGER trg_police_station_delete
+AFTER DELETE ON police_station
+FOR EACH ROW
+BEGIN
+    INSERT INTO police_station_log (station_id, action_type)
+    VALUES (OLD.station_id, 'DELETE');
+END$$
+DELIMITER ;
+
+কেন Delete Trigger কাজ করবে না?
+DELETE Trigger তখনই চলে যখন DELETE FROM table_name করা হয়।
+
+Status change (যেমন Active → Inactive বা Inactive → Active) হচ্ছে UPDATE অপারেশন, DELETE নয়।
+
+তাই এই ক্ষেত্রে AFTER UPDATE Trigger লাগবে, যাতে Status পরিবর্তন হলে লগ/ভিউ টেবিলে রেকর্ড হয়।
+
+Status পরিবর্তনের জন্য Trigger -----
+
+DELIMITER $$
+
+CREATE TRIGGER criminal_info_status_change
+AFTER UPDATE ON criminal_info
+FOR EACH ROW
+BEGIN
+    -- শুধু তখন কাজ করবে যখন status পরিবর্তিত হবে
+    IF NEW.status <> OLD.status THEN -- NEW.status <> OLD.status → বোঝায়, যদি status পরিবর্তন হয়
+        INSERT INTO criminal_status_log (criminal_id, old_status, new_status, changed_at)
+        VALUES (OLD.id, OLD.status, NEW.status, NOW()); -- লগ টেবিলে আগের status আর নতুন status সেভ হবে
+    END IF;
+END$$
+
+DELIMITER ;

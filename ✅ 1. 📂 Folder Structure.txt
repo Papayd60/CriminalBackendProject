@@ -1,0 +1,53 @@
+/Criminal
+├── /routes
+│   └── criminal.routes.js
+├── /controllers
+│   └── criminal.controller.js
+├── /services
+│   ├── db.js
+│   └── cloudinary.js
+├── /views
+│   └── criminal-report.ejs
+├── /uploads
+├── .env
+├── server.js
+├── package.json
+
+express → API server
+
+mysql2 → Database connect
+
+ejs → HTML view template
+
+puppeteer → HTML থেকে PDF convert করার জন্য
+
+dotenv → Env variable load
+
+# npm cache clear
+npm cache clean --force
+npx puppeteer browsers install chrome // When "error":"Could not find Chrome (ver. 139.0.7258.66).
+# node_modules & package-lock.json মুছে ফেলো
+rd /s /q node_modules
+del package-lock.json
+
+# পুনরায় install করো
+npm install puppeteer puppeteer-core
+
+create by -----
+npm init -y -- run 1st , show package.json file but no dependencies data
+npm install dotenv nodemon -g express mysql2 dotenv multer cloudinary ejs body-parser -- run 2nd , show package.json file but dependencies data
+| ধাপ               | কী হয়          | `package.json` ফাইলে কী যুক্ত হয়                     |
+| ----------------- | -------------- | ---------------------------------------------------- |
+| `npm init -y`     | প্রজেক্ট তৈরি  | শুধু মেটা-তথ্য (name, version ইত্যাদি)               |
+| `npm install ...` | প্যাকেজ ইনস্টল | `dependencies` অংশে লাইব্রেরির নাম ও ভার্সন যুক্ত হয় |
+
+
+| Feature          | তোমার সিচুয়েশন                                           | ব্যবহার করবে কেন?           |
+| ---------------- | -------------------------------------------------------- | --------------------------  |
+| Stored Procedure | Criminal insert + Description insert + Log insert একসাথে | কম কোড, বেশি গতি         |
+| Trigger          | Auto Log যখন Criminal add/update/delete হয়               | অটো অডিট ট্রেইল            |
+| View             | Join query সহজ করতে                                     | Read অপারেশন দ্রুত ও ক্লিন   |
+| Index            | Aadhaar, Phone, police\_id সার্চে গতি বাড়াতে                 | Large dataset performance  |
+| Transaction      | Multi-table insert/update rollback সাপোর্ট                  | Data consistency           |
+
+
