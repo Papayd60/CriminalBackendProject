@@ -322,8 +322,24 @@ Conflict Fix করার ধাপ
 
 ফাইল খুলে ঠিক করো কোন কোড ঠিক।
 
-const name = "Karim";   // final decision
+const name = "Karim";   // final decision মানে feature branch-এর কোড সঠিক ✅
 
+What to do now?
+
+আগে নিশ্চিত হও তুমি feature/new-branch এ আছো:
+
+git checkout feature/new-branch
+
+
+main এর সাথে মর্জ করো (তাহলে Karim code main এ যাবে):
+
+git checkout main
+git merge feature/new-branch
+
+
+এখন main branch এ code হবে:
+
+const name = "Karim";   // final decision
 
 Stage করো:
 
