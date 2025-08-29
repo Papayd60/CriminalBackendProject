@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bodyParser from 'body-parser';
 import cors from 'cors'; // Angular Defult PORT 4200 , Nodejs Server Port Defult 3000/8000 , browser did no't understand 
+import mysql2 from 'mysql2';
 import ejs from 'ejs'; // HTML view template
 import puppeteer from 'puppeteer'; // HTML থেকে PDF convert করার জন্য
 import criminalRoutes from './routes/criminal.routes.js';
@@ -32,12 +33,12 @@ app.set('views', path.join(__dirname, 'views'));
 // ✅ ডেটাবেস সংযোগ ফাংশন
 async function connectToDatabase() {
   try {
-    const connection = await mysql.createConnection({
-      host: process.env.MYSQL_HOST, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      user: process.env.MYSQL_USER, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      password: process.env.MYSQL_PASSWORD, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      database: process.env.MYSQL_DATABASE, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      port: process.env.MYSQL_PORT, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+    const connection = await mysql2.createConnection({
+      host: process.env.DB_HOST, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      user: process.env.DB_USER, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      password: process.env.DB_PASS, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      database: process.env.DB_NAME, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      port: process.env.PORT, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
     });
     console.log('✅ Connected to MySQL Database!');
     return connection;
