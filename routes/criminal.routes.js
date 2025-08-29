@@ -6,12 +6,15 @@ import { v2 as cloudinaryV2 } from 'cloudinary';
 
 import * as controller from '../controllers/criminal.controller.js';
 import verifyToken from '../allToken.js'; // ✅ যদি default export করা থাকে
+import pool from '../services/db.js';
 
 console.log({
   registerPolice: controller.registerPolice,
   getSecureloginPolice: controller.loginPolice,
   getVulnerable: controller.getVulnerable,
 });
+
+dotenv.config();
 
 const router = express.Router();
 
@@ -33,6 +36,17 @@ cloudinaryV2.config({
 });
 
 // ✅ Routes
+// ✅ এই রুটটি ডেটাবেস থেকে সব ক্রিমিনালের তথ্য নিয়ে আসে
+router.get('/', async (req, res) => {
+  try {
+    // ✅ pool কে সরাসরি ইম্পোর্ট না করে middleware থেকে req.pool ব্যবহার করা হয়েছে।
+    const [rows] = await req.pool.query('SELECT * FROM criminal_info');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching criminals:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 router.post('/register', controller.registerPolice);             // ✅ Prepared Statement - Register Operations
 router.post('/login', controller.loginPolice);      // ✅ Prepared Statement - Login Operations
 router.post('/vulnerable', controller.getVulnerable);            // 🛑 No token (SQL injection possible)
