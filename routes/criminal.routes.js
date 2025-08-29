@@ -40,7 +40,7 @@ cloudinaryV2.config({
 router.get('/', async (req, res) => {
   try {
     // ✅ pool কে সরাসরি ইম্পোর্ট না করে middleware থেকে req.pool ব্যবহার করা হয়েছে।
-    const [rows] = await req.pool.query('SELECT * FROM criminal_info');
+    const [rows] = await pool.query('SELECT * FROM criminal_info');
     res.json(rows);
   } catch (error) {
     console.error('Error fetching criminals:', error);
