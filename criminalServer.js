@@ -5,7 +5,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bodyParser from 'body-parser';
 import cors from 'cors'; // Angular Defult PORT 4200 , Nodejs Server Port Defult 3000/8000 , browser did no't understand 
-import mysql2 from 'mysql2';
 import ejs from 'ejs'; // HTML view template
 import puppeteer from 'puppeteer'; // HTML থেকে PDF convert করার জন্য
 import criminalRoutes from './routes/criminal.routes.js';
@@ -23,43 +22,18 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.set('view engine', 'ejs');
+app.set('views', path.join(process.cwd(), 'views'));
 
+const port = process.env.PORT || 3000; 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// ✅ ডেটাবেস সংযোগ ফাংশন
-async function connectToDatabase() {
-  try {
-    const connection = await mysql2.createConnection({
-      host: process.env.DB_HOST, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      user: process.env.DB_USER, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      password: process.env.DB_PASS, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      database: process.env.DB_NAME, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-      port: process.env.PORT, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
-    });
-    console.log('✅ Connected to MySQL Database!');
-    return connection;
-  } catch (error) {
-    console.error('❌ Failed to connect to database:', error);
-    process.exit(1);
-  }
-}
+// ✅ Connect Routes
+app.use('/api/criminals', criminalRoutes);
 
-// ✅ সার্ভার চালু করার আগে ডেটাবেস সংযোগ স্থাপন
-async function startServer() {
-  await connectToDatabase();
-  
-  // ✅ Connect Routes
-  app.use('/api/criminals', criminalRoutes);
-
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
-  });
-}
-
-// ✅ সার্ভার শুরু করা
-startServer();
+app.listen(port, () => {
+  console.log(`🚀 Server running on http://localhost:${port}`);
+});
