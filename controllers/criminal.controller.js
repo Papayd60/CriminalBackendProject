@@ -36,7 +36,6 @@ import { v2 as cloudinaryV2 } from 'cloudinary';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import ExcelJS from 'exceljs';                         // ▶️ Excel তৈরি/Export করার জন্য ExcelJS লাইব্রেরি ব্যবহার করা হচ্ছে
-import { log } from 'console';
 
 dotenv.config();
 

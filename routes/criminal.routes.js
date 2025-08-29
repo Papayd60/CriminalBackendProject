@@ -3,7 +3,7 @@ import express from 'express'; // ✅ Express হলো Node.js-এর সবচ
 import multer from 'multer'; // ✅ Multer হলো একটি middleware, যেটা ফাইল (ছবি, পিডিএফ) upload করার জন্য ব্যবহৃত হয়
 import fs from 'fs';
 import { v2 as cloudinaryV2 } from 'cloudinary';
-
+import dotenv from 'dotenv';
 import * as controller from '../controllers/criminal.controller.js';
 import verifyToken from '../allToken.js'; // ✅ যদি default export করা থাকে
 import pool from '../services/db.js';
