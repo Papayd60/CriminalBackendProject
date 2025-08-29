@@ -22,18 +22,43 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.set('view engine', 'ejs');
-app.set('views', path.join(process.cwd(), 'views'));
 
-const port = process.env.PORT || 3000; 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// ✅ Connect Routes
-app.use('/api/criminals', criminalRoutes);
+// ✅ ডেটাবেস সংযোগ ফাংশন
+async function connectToDatabase() {
+  try {
+    const connection = await mysql.createConnection({
+      host: process.env.MYSQL_HOST, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      user: process.env.MYSQL_USER, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      password: process.env.MYSQL_PASSWORD, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      database: process.env.MYSQL_DATABASE, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+      port: process.env.MYSQL_PORT, // ✅ রেলওয়ের এনভায়রনমেন্ট ভেরিয়েবলের নাম ব্যবহার করা হয়েছে
+    });
+    console.log('✅ Connected to MySQL Database!');
+    return connection;
+  } catch (error) {
+    console.error('❌ Failed to connect to database:', error);
+    process.exit(1);
+  }
+}
 
-app.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
-});
+// ✅ সার্ভার চালু করার আগে ডেটাবেস সংযোগ স্থাপন
+async function startServer() {
+  await connectToDatabase();
+  
+  // ✅ Connect Routes
+  app.use('/api/criminals', criminalRoutes);
+
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`🚀 Server running on http://localhost:${port}`);
+  });
+}
+
+// ✅ সার্ভার শুরু করা
+startServer();
