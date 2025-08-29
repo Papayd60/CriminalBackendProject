@@ -1,3 +1,24 @@
+Deployment Flow
+
+DB Deploy:
+
+MySQL → PlanetScale / AWS RDS / GCP CloudSQL
+
+অথবা MongoDB → MongoDB Atlas
+
+Backend Deploy:
+
+Render / Railway / Vercel / AWS
+
+Image/File:
+
+Cloudinary (already setup)
+
+Frontend (Angular/React):
+
+Vercel/Netlify/GitHub Pages → API calls করবে তোমার public backend এ
+
+
 /Criminal
 ├── /routes
 │   └── criminal.routes.js

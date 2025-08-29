@@ -589,10 +589,10 @@ export const criminalRecordUpdate = async (req, res) => {
 
         photoUrls.push(uploadResult.secure_url); // Cloudinary URL অ্যারেতে যোগ করা
         try {
-        // fs.unlinkSync() → শুধু ফাইল ডিলিট প্রসেস শেষ না হওয়া পর্যন্ত Node.js অন্য কাজ এক্সিকিউট করবে না (blocking / synchronous)
-        // ফাইল যত বড় হোক না কেন, সেটা RAM বা local memory পুরোপুরি দখল করে রাখে না
-        // (শুধু লোকাল ফাইল ডিলিট করে, রিমোট সার্ভার ফাইল নয় , synchronous হলে “লোকাল ফাইল ডিলিট না হওয়া পর্যন্ত পরের লাইন চলবে না)।
-        // fs.unlink() (asynchronous) → ফাইল ডিলিট করার কাজ ব্যাকগ্রাউন্ডে হবে, আর event loop ফ্রি থাকবে অন্য কোড চালানোর জন্য।
+          // fs.unlinkSync() → শুধু ফাইল ডিলিট প্রসেস শেষ না হওয়া পর্যন্ত Node.js অন্য কাজ এক্সিকিউট করবে না (blocking / synchronous)
+          // ফাইল যত বড় হোক না কেন, সেটা RAM বা local memory পুরোপুরি দখল করে রাখে না
+          // (শুধু লোকাল ফাইল ডিলিট করে, রিমোট সার্ভার ফাইল নয় , synchronous হলে “লোকাল ফাইল ডিলিট না হওয়া পর্যন্ত পরের লাইন চলবে না)।
+          // fs.unlink() (asynchronous) → ফাইল ডিলিট করার কাজ ব্যাকগ্রাউন্ডে হবে, আর event loop ফ্রি থাকবে অন্য কোড চালানোর জন্য।
           fs.unlinkSync(filePath);
           console.log("✅ ফাইল সফলভাবে ডিলিট হয়েছে:", filePath);
         } catch (err) {
@@ -748,18 +748,23 @@ export const criminalRecordallview = async (req, res) => {
 // 6. Criminal Record Inactive Secure (Prepared + Token) 🔐 Delete / Inactive ফাংশন
 // POST -  http://localhost:3000/api/criminals/criminalRecordStatusChange
 export const criminalRecordStatusChange = async (req, res) => {
-  const conn = await pool.getConnection();
+  const conn = await pool.getConnection(); // ✅ ডাটাবেজের সাথে connection নেওয়া হলো
   try {
-    await conn.beginTransaction();
+    await conn.beginTransaction(); // ✅ Transaction শুরু করা হলো (যদি কোনো error হয় → rollback করা যাবে)
 
-    const { crid, crstatus } = req.body;
+    const { crid, crstatus, page = 1, limit = 10 } = req.body;
+    // ✅ Request থেকে criminal id (crid), criminal status (crstatus),
+    //    pagination এর জন্য page এবং limit নেওয়া হলো।
+    //    default value → page = 1 (প্রথম পেজ), limit = 10 (প্রতি পেজে ১০টা data)
+
     console.log("Request Body -------->", req.body);
-    // ✅ ইনপুট চেক
+
+    // ✅ ইনপুট চেক (crid আর crstatus না থাকলে error)
     if (!crid || !crstatus) {
       return res.status(400).json({ msg: '❌ Required fields missing!' });
     }
 
-    // ✅ SP কল (প্যারামিটার) — সঠিক অর্ডার মেনে
+    // ✅ Stored Procedure কল করা হলো (criminal এর status update করার জন্য)
     const [result] = await conn.query(
       `CALL sp_set_criminal_status(?, ?)`,
       [crid, crstatus]
@@ -767,27 +772,64 @@ export const criminalRecordStatusChange = async (req, res) => {
 
     console.log("SP Result:", JSON.stringify(result, null, 2));
 
+    // ✅ যদি SP থেকে কোনো data না আসে তাহলে rollback করে error return করবো
     if (!result || !result[0] || result[0].length === 0) {
       await conn.rollback();
       return res.status(400).json({ msg: '❌ SP থেকে কোনো ডেটা পাওয়া যায়নি!' });
     }
 
-    await conn.commit();
+    await conn.commit(); // ✅ Transaction সফল হলে commit করা হলো
 
-    const spstatusData = result[0][0]; // প্রথম রো
+    // ✅ Pagination এর offset বের করা
+    const offsetcriminalRecordStatusChange = (page - 1) * limit;
+    // 👉 উদাহরণ: page = 1 হলে offset = 0 → প্রথম data থেকে শুরু
+    // 👉 page = 2 হলে offset = 10 → ১১ নাম্বার data থেকে শুরু (কারণ প্রথম ১০টা বাদ যাবে)
+    // 👉 page = 3 হলে offset = 20 → ২১ নাম্বার data থেকে শুরু
 
+    // ✅ Criminal Info table থেকে pagination সহ data ফেচ করা
+    const [paginatedData] = await conn.query(
+      `
+        SELECT 
+        ci.id,
+        ci.crStatus,
+        ci.created_at
+        FROM criminal_info ci
+        ORDER BY ci.created_at DESC
+        LIMIT ?  OFFSET ?;
+      `,
+      [parseInt(limit), parseInt(offsetcriminalRecordStatusChange)] // ✅ LIMIT = কতগুলো data আনবো, OFFSET = কত নম্বর থেকে শুরু , Example LIMIT  10  OFFSET  0;
+    );
+
+    // ✅ Criminal Info table থেকে মোট কয়টা data আছে সেটা বের করা হলো
+    const [totalResult] = await conn.query(
+      `SELECT COUNT(*) AS total FROM criminal_info`
+    );
+    const total = totalResult[0].total; // মোট data
+    const totalPages = Math.ceil(total / limit); // মোট কত পেজ হবে (limit অনুযায়ী ভাগ করে)
+
+    const spstatusData = result[0][0]; // ✅ Stored Procedure এর প্রথম row data
+
+    // ✅ Final Response return করা হলো
     res.json({
-      currntmsg: '✅ Criminal Record Status Changed',
-      sp_response: spstatusData
+      currntmsg: '✅ Criminal Record Status Changed', // confirmation message
+      sp_response: spstatusData,  // SP থেকে আসা response
+      pagination: {               // pagination info
+        page: parseInt(page),     // বর্তমান পেজ
+        limit: parseInt(limit),   // প্রতি পেজে কয়টা data
+        total,                    // মোট data সংখ্যা
+        totalPages,               // মোট কত পেজ
+      },
+      data: paginatedData         // Criminal Info এর data list
     });
 
   } catch (err) {
-    await conn.rollback();
+    await conn.rollback(); // ✅ কোনো error হলে rollback করবো
     res.status(500).json({ msg: '❌ Server error', error: err.message });
   } finally {
-    conn.release();
+    conn.release(); // ✅ connection release করবো
   }
 };
+
 
 // 7. 📄 Criminal Report Generate & Download (Puppeteer version) (Prepared + Token)
 export const downloadCriminalReportasPDF = async (req, res) => {
@@ -893,7 +935,7 @@ export const downloadCriminalReportasPDF = async (req, res) => {
 // 8. 🔰 Criminal Excel Download Controller ফাংশন
 export const downloadCriminalReportasEXCEL = async (req, res) => {
   const { crid } = req.body;                          // ▶️ API URL থেকে criminal_id পাওয়া হচ্ছে (GET /api/criminals/excel/:id)
-  console.log("input ----------->",crid);
+  console.log("input ----------->", crid);
   if (!crid || isNaN(Number(crid))) {                     // ▶️ Validation: criminal_id সংখ্যা হতে হবে
     return res.status(400).json({ msg: '❌ criminal_id প্রয়োজন এবং এটি একটি সংখ্যা হতে হবে' });
   }
@@ -919,19 +961,19 @@ export const downloadCriminalReportasEXCEL = async (req, res) => {
 
     // ▶️ Excel-এর কলাম হেডার (Header) সেট করা হলো , ➡️ কোন কোন কলাম থাকবে, কেমন width হবে সেটা define করা হলো।
     ws.columns = [
-      { header: 'Criminal ID',     key: 'criminal_id',    width: 15 },  // ▶️ Criminal টেবিলের ID
-      { header: 'Officer ID',      key: 'investigOfficer_id', width: 18 }, // ▶️ কোন অফিসার রেজিস্টার করেছে
-      { header: 'Name',            key: 'crname',         width: 18 },  // ▶️ Criminal-এর নাম
-      { header: 'Aadhaar',         key: 'craadhaar',      width: 18 },  // ▶️ আধার নম্বর
-      { header: 'Address',         key: 'craddress',      width: 25 },  // ▶️ Criminal-এর ঠিকানা
-      { header: 'Phone',           key: 'crphone',        width: 15 },  // ▶️ ফোন নাম্বার
-      { header: 'Crime Type',      key: 'crtype',         width: 16 },  // ▶️ অপরাধের ধরন
-      { header: 'FIR Place',       key: 'crfir_place',    width: 18 },  // ▶️ কোথায় FIR করা হয়েছে
-      { header: 'Event Date',      key: 'creventdate',    width: 14 },  // ▶️ অপরাধের তারিখ
-      { header: 'Event Time',      key: 'creventtime',    width: 12 },  // ▶️ অপরাধের সময়
-      { header: 'Photo URLs',      key: 'photo_urls',     width: 50 },  // ▶️ Criminal Photo-এর Cloudinary URLs (JSON Array → String)
-      { header: 'Local Paths',     key: 'local_paths',    width: 50 },  // ▶️ Criminal Photo Local Paths (JSON Array → String)
-      { header: 'Created At',      key: 'created_at',     width: 20 },  // ▶️ Criminal Info তৈরি হওয়ার সময়
+      { header: 'Criminal ID', key: 'criminal_id', width: 15 },  // ▶️ Criminal টেবিলের ID
+      { header: 'Officer ID', key: 'investigOfficer_id', width: 18 }, // ▶️ কোন অফিসার রেজিস্টার করেছে
+      { header: 'Name', key: 'crname', width: 18 },  // ▶️ Criminal-এর নাম
+      { header: 'Aadhaar', key: 'craadhaar', width: 18 },  // ▶️ আধার নম্বর
+      { header: 'Address', key: 'craddress', width: 25 },  // ▶️ Criminal-এর ঠিকানা
+      { header: 'Phone', key: 'crphone', width: 15 },  // ▶️ ফোন নাম্বার
+      { header: 'Crime Type', key: 'crtype', width: 16 },  // ▶️ অপরাধের ধরন
+      { header: 'FIR Place', key: 'crfir_place', width: 18 },  // ▶️ কোথায় FIR করা হয়েছে
+      { header: 'Event Date', key: 'creventdate', width: 14 },  // ▶️ অপরাধের তারিখ
+      { header: 'Event Time', key: 'creventtime', width: 12 },  // ▶️ অপরাধের সময়
+      { header: 'Photo URLs', key: 'photo_urls', width: 50 },  // ▶️ Criminal Photo-এর Cloudinary URLs (JSON Array → String)
+      { header: 'Local Paths', key: 'local_paths', width: 50 },  // ▶️ Criminal Photo Local Paths (JSON Array → String)
+      { header: 'Created At', key: 'created_at', width: 20 },  // ▶️ Criminal Info তৈরি হওয়ার সময়
     ];
 
     // ▶️ Criminal Info ডেটা প্রতিটি Row হিসেবে Excel-এ বসানো হচ্ছে
@@ -941,19 +983,19 @@ export const downloadCriminalReportasEXCEL = async (req, res) => {
       const locals = safeParseArray(row.local_path_json);  // ▶️ Local Path list
 
       ws.addRow({
-        criminal_id:        row.criminal_id,                     // ▶️ Criminal ID
+        criminal_id: row.criminal_id,                     // ▶️ Criminal ID
         investigOfficer_id: row.investigOfficer_id,              // ▶️ Officer ID
-        crname:             row.crname,                          // ▶️ Criminal Name
-        craadhaar:          row.craadhaar,                       // ▶️ Aadhaar
-        craddress:          row.craddress,                       // ▶️ Address
-        crphone:            row.crphone,                         // ▶️ Phone Number
-        crtype:             row.crtype || '',                    // ▶️ Crime Type (Null হলে খালি দেখাবে)
-        crfir_place:        row.crfir_place || '',               // ▶️ FIR Place
-        creventdate:        row.creventdate || '',               // ▶️ Event Date
-        creventtime:        row.creventtime || '',               // ▶️ Event Time
-        photo_urls:         photos.join('\n'),                   // ▶️ একাধিক URL → আলাদা লাইনে
-        local_paths:        locals.join('\n'),                   // ▶️ একাধিক Local Path → আলাদা লাইনে
-        created_at:         row.created_at                       // ▶️ Created Time
+        crname: row.crname,                          // ▶️ Criminal Name
+        craadhaar: row.craadhaar,                       // ▶️ Aadhaar
+        craddress: row.craddress,                       // ▶️ Address
+        crphone: row.crphone,                         // ▶️ Phone Number
+        crtype: row.crtype || '',                    // ▶️ Crime Type (Null হলে খালি দেখাবে)
+        crfir_place: row.crfir_place || '',               // ▶️ FIR Place
+        creventdate: row.creventdate || '',               // ▶️ Event Date
+        creventtime: row.creventtime || '',               // ▶️ Event Time
+        photo_urls: photos.join('\n'),                   // ▶️ একাধিক URL → আলাদা লাইনে
+        local_paths: locals.join('\n'),                   // ▶️ একাধিক Local Path → আলাদা লাইনে
+        created_at: row.created_at                       // ▶️ Created Time
       });
     }
 
